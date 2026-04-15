@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeetChat</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --bg2: #161616;
+    --bg3: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #00e5a0;
+    --accent2: #00b07a;
+    --text: #f0f0f0;
+    --muted: #888;
+    --red: #ff4d4d;
+    --online: #00e5a0;
+    --offline: #ff4d4d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  h1,h2,h3 { font-family: 'Syne', sans-serif; }
+
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* LANDING */
+  #screen-landing {
+    background: var(--bg);
+    align-items: center; justify-content: center;
+    padding: 2rem; position: relative; overflow: hidden;
+  }
+  #screen-landing::before {
+    content:''; position:absolute; width:500px; height:500px;
+    background: radial-gradient(circle, rgba(0,229,160,0.08) 0%, transparent 70%);
+    top:-100px; left:-100px; pointer-events:none;
+  }
+  .landing-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 20px; padding: 2.5rem;
+    width: 100%; max-width: 420px; position: relative; z-index: 1;
+  }
+  .logo { font-family:'Syne',sans-serif; font-size:2rem; font-weight:700; color:var(--accent); margin-bottom:.25rem; }
+  .logo span { color:var(--text); }
+  .tagline { color:var(--muted); font-size:.9rem; margin-bottom:2rem; }
+
+  .form-group { margin-bottom:1.25rem; }
+  .form-group label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:.4rem; letter-spacing:.05em; text-transform:uppercase; }
+  .form-group input, .form-group select {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); padding:.7rem 1rem; border-radius:var(--radius);
+    font-family:inherit; font-size:.95rem; outline:none; transition: border-color .2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color:var(--accent); }
+  .form-group select option { background:var(--bg3); }
+
+  .gender-group { display:flex; gap:.5rem; }
+  .gender-btn {
+    flex:1; padding:.6rem; border:1px solid var(--border);
+    background:var(--bg3); color:var(--muted);
+    border-radius:var(--radius); cursor:pointer;
+    font-family:inherit; font-size:.85rem; transition:all .2s;
+  }
+  .gender-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(0,229,160,.08); }
+
+  .btn-primary {
+    width:100%; padding:.85rem; background:var(--accent);
+    color:#000; border:none; border-radius:var(--radius);
+    font-family:'Syne',sans-serif; font-size:1rem; font-weight:600;
+    cursor:pointer; transition:all .2s; margin-top:.5rem;
+  }
+  .btn-primary:hover { background:var(--accent2); transform:translateY(-1px); }
+  .btn-secondary {
+    width:100%; padding:.7rem; background:transparent;
+    color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); font-family:inherit;
+    cursor:pointer; font-size:.85rem; transition:all .2s; margin-top:.5rem;
+  }
+  .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+  .divider { text-align:center; color:var(--muted); font-size:.8rem; margin:.75rem 0; }
+
+  /* MAP */
+  #screen-map { background:var(--bg); }
+  .topbar {
+    background:var(--bg2); border-bottom:1px solid var(--border);
+    padding:.75rem 1.25rem; display:flex; align-items:center;
+    justify-content:space-between; flex-shrink:0;
+  }
+  .topbar-logo { font-family:'Syne',sans-serif; font-size:1.1rem; font-weight:700; color:var(--accent); }
+  .user-badge {
+    display:flex; align-items:center; gap:.5rem;
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:20px; padding:.35rem .85rem; font-size:.85rem;
+  }
+  .dot { width:8px;height:8px;border-radius:50%; background:var(--accent); flex-shrink:0; }
+  .dot.offline { background:var(--offline); }
+  .map-controls {
+    background:var(--bg2); border-bottom:1px solid var(--border);
+    padding:.75rem 1.25rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+  }
+  .range-label { font-size:.8rem; color:var(--muted); white-space:nowrap; }
+  .range-slider { flex:1; min-width:120px; max-width:200px; accent-color:var(--accent); }
+  .range-val { font-size:.85rem; color:var(--accent); font-weight:600; min-width:50px; }
+  #map-container { height:320px; flex-shrink:0; }
+  #map-container .leaflet-container { background:#111; }
+  .section-title {
+    padding:.75rem 1.25rem .35rem;
+    font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;
+  }
+  .user-list { flex:1; overflow-y:auto; padding:.5rem; display:flex; flex-direction:column; gap:.4rem; }
+  .user-item {
+    background:var(--bg2); border:1px solid var(--border);
+    border-radius:var(--radius); padding:.75rem 1rem;
+    display:flex; align-items:center; gap:.75rem; cursor:pointer; transition:all .2s;
+  }
+  .user-item:hover { border-color:var(--accent); background:rgba(0,229,160,.04); }
+  .user-item.virtual { opacity:.8; }
+  .avatar {
+    width:36px;height:36px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.8rem;font-weight:600;flex-shrink:0;
+    background:var(--bg3); border:1px solid var(--border);
+  }
+  .avatar.online { border-color:var(--online); }
+  .user-info { flex:1; min-width:0; }
+  .user-name { font-size:.9rem; font-weight:500; }
+  .user-meta { font-size:.75rem; color:var(--muted); margin-top:.1rem; }
+  .user-status { font-size:.7rem; padding:.2rem .5rem; border-radius:20px; background:rgba(0,229,160,.1); color:var(--accent); border:1px solid rgba(0,229,160,.2); white-space:nowrap; }
+  .user-status.offline { background:rgba(255,77,77,.1); color:var(--red); border-color:rgba(255,77,77,.2); }
+
+  /* CHAT */
+  #screen-chat { background:var(--bg); }
+  .chat-header {
+    background:var(--bg2); border-bottom:1px solid var(--border);
+    padding:.75rem 1.25rem; display:flex; align-items:center; gap:.75rem; flex-shrink:0;
+  }
+  .back-btn {
+    background:none; border:none; color:var(--muted); cursor:pointer;
+    font-size:1.2rem; padding:.25rem; line-height:1;
+  }
+  .chat-peer-info { flex:1; }
+  .chat-peer-name { font-size:.95rem; font-weight:600; }
+  .chat-peer-status { font-size:.75rem; color:var(--accent); }
+  .connected-badge {
+    display:flex;align-items:center;gap:.4rem;
+    font-size:.75rem; color:var(--accent);
+    background:rgba(0,229,160,.08); border:1px solid rgba(0,229,160,.2);
+    border-radius:20px; padding:.3rem .7rem;
+  }
+  .pulse { width:6px;height:6px;border-radius:50%;background:var(--accent); animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+  .messages { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:.5rem; }
+  .msg { max-width:75%; display:flex; flex-direction:column; gap:.2rem; }
+  .msg.mine { align-self:flex-end; align-items:flex-end; }
+  .msg.theirs { align-self:flex-start; align-items:flex-start; }
+  .msg-bubble {
+    padding:.55rem .9rem; border-radius:14px;
+    font-size:.9rem; line-height:1.5; word-break:break-word;
+  }
+  .msg.mine .msg-bubble { background:var(--accent); color:#000; border-bottom-right-radius:4px; }
+  .msg.theirs .msg-bubble { background:var(--bg3); border:1px solid var(--border); border-bottom-left-radius:4px; }
+  .msg-meta { font-size:.7rem; color:var(--muted); }
+  .msg-sender { font-size:.7rem; color:var(--muted); margin-bottom:.1rem; }
+
+  /* Translation indicator */
+  .msg-translated {
+    font-size:.65rem; color:var(--muted); opacity:.7;
+    display:flex; align-items:center; gap:.25rem; margin-top:.1rem;
+  }
+  .msg-translated::before { content:'🌐'; font-size:.6rem; }
+  .msg-original {
+    font-size:.75rem; color:var(--muted); font-style:italic;
+    padding:.3rem .6rem; background:rgba(255,255,255,.04);
+    border-radius:6px; margin-top:.2rem; max-width:240px;
+    border-left:2px solid var(--border);
+  }
+  .translate-toggle {
+    font-size:.65rem; color:var(--accent); cursor:pointer;
+    text-decoration:underline; margin-top:.1rem; background:none; border:none;
+    font-family:inherit; padding:0;
+  }
+
+  /* Lang indicator in chat header */
+  .lang-indicator {
+    font-size:.7rem; color:var(--muted);
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:8px; padding:.2rem .5rem;
+  }
+
+  .typing-indicator {
+    display:none;align-items:center;gap:.4rem;
+    padding:.5rem 1rem; font-size:.8rem; color:var(--muted);
+  }
+  .typing-dots span {
+    display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--muted);
+    animation:typing .8s infinite; margin-right:2px;
+  }
+  .typing-dots span:nth-child(2){animation-delay:.2s}
+  .typing-dots span:nth-child(3){animation-delay:.4s}
+  @keyframes typing{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}
+
+  .chat-input-area {
+    background:var(--bg2); border-top:1px solid var(--border);
+    padding:.75rem; flex-shrink:0;
+  }
+  .color-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; flex-wrap:wrap; }
+  .color-label { font-size:.75rem; color:var(--muted); }
+  .color-swatch {
+    width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;
+    transition:border-color .15s;
+  }
+  .color-swatch.selected { border-color:white; }
+  .input-row { display:flex; gap:.5rem; align-items:flex-end; }
+  .chat-textarea {
+    flex:1; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); border-radius:var(--radius);
+    padding:.6rem .9rem; font-family:inherit; font-size:.9rem;
+    resize:none; outline:none; max-height:100px;
+    transition:border-color .2s; min-height:40px;
+  }
+  .chat-textarea:focus { border-color:var(--accent); }
+  .send-btn {
+    background:var(--accent); color:#000; border:none;
+    border-radius:var(--radius); padding:.6rem 1.1rem;
+    font-family:inherit; font-weight:600; cursor:pointer;
+    font-size:.85rem; transition:all .2s; white-space:nowrap;
+  }
+  .send-btn:hover { background:var(--accent2); }
+  .file-btn {
+    background:var(--bg3); color:var(--muted); border:1px solid var(--border);
+    border-radius:var(--radius); padding:.6rem .8rem;
+    cursor:pointer; font-size:1rem; transition:all .2s;
+  }
+  .file-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* Translating spinner */
+  .translating-bar {
+    display:none; align-items:center; gap:.5rem;
+    padding:.3rem 1rem; font-size:.75rem; color:var(--accent);
+    border-top:1px solid var(--border); background:rgba(0,229,160,.04);
+  }
+  .translating-bar.show { display:flex; }
+  .spin { animation: spin .8s linear infinite; display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ADMIN */
+  #screen-admin { background:var(--bg); padding:1.5rem; overflow-y:auto; }
+  .admin-header { display:flex;align-items:center;justify-content:space-between; margin-bottom:1.5rem; }
+  .admin-title { font-size:1.4rem; font-weight:700; }
+  .admin-section { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; margin-bottom:1rem; }
+  .admin-section h3 { font-size:.9rem; color:var(--accent); margin-bottom:1rem; text-transform:uppercase; letter-spacing:.08em; }
+  .log-item { font-size:.8rem; padding:.5rem; border-bottom:1px solid var(--border); display:flex; gap:.75rem; }
+  .log-time { color:var(--muted); white-space:nowrap; }
+  .log-detail { color:var(--text); }
+  .filter-row { display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-end; }
+  .filter-group { display:flex;flex-direction:column;gap:.3rem; }
+  .filter-group label { font-size:.75rem; color:var(--muted); }
+  .filter-group select, .filter-group input {
+    background:var(--bg3); border:1px solid var(--border); color:var(--text);
+    padding:.45rem .7rem; border-radius:8px; font-family:inherit; font-size:.85rem; outline:none;
+  }
+
+  /* Admin input full width */
+  .admin-input {
+    width:100%; background:var(--bg3); border:1px solid var(--border);
+    color:var(--text); padding:.5rem .75rem; border-radius:8px;
+    font-family:inherit; font-size:.85rem; outline:none;
+    transition:border-color .2s; margin-bottom:.5rem;
+  }
+  .admin-input:focus { border-color:var(--accent); }
+  .admin-label { font-size:.75rem; color:var(--muted); margin-bottom:.3rem; display:block; }
+  .admin-row { margin-bottom:.75rem; }
+  .admin-hint { font-size:.72rem; color:var(--muted); margin-top:.3rem; line-height:1.4; }
+  .admin-hint a { color:var(--accent); }
+
+  /* Live sessions */
+  .session-item {
+    background:var(--bg3); border:1px solid var(--border);
+    border-radius:10px; padding:.75rem; margin-bottom:.5rem;
+  }
+  .session-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.5rem; }
+  .session-name { font-size:.85rem; font-weight:600; color:var(--accent); }
+  .session-meta { font-size:.72rem; color:var(--muted); }
+  .session-msgs { max-height:150px; overflow-y:auto; margin-bottom:.5rem; font-size:.8rem; }
+  .session-msg { padding:.2rem 0; border-bottom:1px solid rgba(255,255,255,.05); }
+  .session-msg .s-sender { color:var(--accent); font-weight:600; }
+  .session-msg .s-text { color:var(--text); margin-left:.3rem; }
+  .session-input-row { display:flex; gap:.5rem; }
+  .session-textarea {
+    flex:1; background:var(--bg); border:1px solid var(--border);
+    color:var(--text); border-radius:8px; padding:.4rem .6rem;
+    font-family:inherit; font-size:.82rem; resize:none; outline:none; min-height:34px;
+  }
+  .session-textarea:focus { border-color:var(--accent); }
+  .session-send-btn {
+    background:var(--accent); color:#000; border:none; border-radius:8px;
+    padding:.4rem .8rem; font-family:inherit; font-size:.8rem;
+    font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .whatsapp-link {
+    display:inline-flex; align-items:center; gap:.4rem;
+    background:#25D366; color:#000; border:none; border-radius:8px;
+    padding:.4rem .75rem; font-family:inherit; font-size:.8rem;
+    font-weight:600; cursor:pointer; text-decoration:none;
+    transition:opacity .2s; margin-top:.4rem;
+  }
+  .whatsapp-link:hover { opacity:.85; }
+  .no-sessions { color:var(--muted); font-size:.82rem; text-align:center; padding:1rem; }
+
+  /* Status indicator for notifications */
+  .notif-status { font-size:.72rem; padding:.2rem .5rem; border-radius:6px; margin-left:.5rem; }
+  .notif-status.ok { background:rgba(0,229,160,.1); color:var(--accent); }
+  .notif-status.err { background:rgba(255,77,77,.1); color:var(--red); }
+
+  /* LANG */
+  .lang-bar { position:fixed; top:.75rem; right:.75rem; z-index:999; }
+  .lang-select {
+    background:var(--bg2); border:1px solid var(--border); color:var(--muted);
+    padding:.35rem .6rem; border-radius:8px; font-family:inherit; font-size:.8rem; outline:none; cursor:pointer;
+  }
+
+  /* TOAST */
+  .toast {
+    position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(100px);
+    background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+    padding:.75rem 1.25rem;font-size:.85rem;color:var(--text);
+    box-shadow:0 4px 20px rgba(0,0,0,.5);
+    transition:transform .3s; z-index:9999; text-align:center; white-space:nowrap;
+  }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+
+  /* file msg */
+  .file-msg { background:var(--bg3); border:1px solid var(--border); border-radius:10px; padding:.6rem .9rem; }
+  .file-name { font-size:.85rem; font-weight:500; }
+  .file-timer { font-size:.75rem; color:var(--accent); margin-top:.2rem; }
+  .file-dl { font-size:.75rem; color:var(--accent); text-decoration:underline; cursor:pointer; }
+
+  #bg-overlay {
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    background-size:cover;background-position:center;
+    opacity:0;transition:opacity .5s;pointer-events:none;z-index:0;
+  }
+  .screen { position:relative; z-index:1; }
+
+  @media(max-width:480px) {
+    .landing-card { padding:1.75rem 1.25rem; }
+    #map-container { height:260px; }
+  }
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+</head>
+<body>
+
+<div id="bg-overlay"></div>
+
+<!-- Language Selector -->
+<div class="lang-bar">
+  <select class="lang-select" id="lang-select" onchange="setLang(this.value)">
+    <option value="en">🌐 EN</option>
+    <option value="he">עברית</option>
+    <option value="ar">العربية</option>
+    <option value="fr">Français</option>
+    <option value="de">Deutsch</option>
+    <option value="es">Español</option>
+    <option value="ru">Русский</option>
+    <option value="zh">中文</option>
+    <option value="pt">Português</option>
+    <option value="it">Italiano</option>
+  </select>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- LANDING -->
+<div class="screen active" id="screen-landing">
+  <div class="landing-card">
+    <div class="logo">Meet<span>Chat</span></div>
+    <div class="tagline" data-i18n="tagline">Connect with people near you — instantly.</div>
+    <div class="form-group">
+      <label data-i18n="username">Username</label>
+      <input type="text" id="inp-username" maxlength="20" placeholder="Up to 20 chars (a-z, 0-9)" autocomplete="off"/>
+    </div>
+    <div class="form-group">
+      <label data-i18n="ageRange">Age Range</label>
+      <select id="inp-age">
+        <option value="">Select...</option>
+        <option>20-25</option><option>25-30</option><option>30-35</option>
+        <option>35-40</option><option>40-45</option><option>45-50</option>
+        <option>50-55</option><option>55-60</option><option>60-65</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label data-i18n="gender">Gender</label>
+      <div class="gender-group">
+        <button class="gender-btn" onclick="setGender('male',this)" data-i18n-val="male">Male</button>
+        <button class="gender-btn" onclick="setGender('female',this)" data-i18n-val="female">Female</button>
+        <button class="gender-btn" onclick="setGender('other',this)" data-i18n-val="other">Other</button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="login()" data-i18n="enterBtn">Enter & Find People</button>
+    <div class="divider" data-i18n="orGuest">— or continue as guest —</div>
+    <button class="btn-secondary" onclick="guestLogin()" data-i18n="guestBtn">Quick Guest Access</button>
+  </div>
+</div>
+
+<!-- MAP -->
+<div class="screen" id="screen-map">
+  <div class="topbar">
+    <div class="topbar-logo">MeetChat</div>
+    <div class="user-badge">
+      <div class="dot"></div>
+      <span id="topbar-username">—</span>
+    </div>
+  </div>
+  <div class="map-controls">
+    <span class="range-label" data-i18n="radius">Radius:</span>
+    <input type="range" class="range-slider" id="radius-slider" min="1" max="50" value="5" oninput="updateRadius(this.value)">
+    <span class="range-val"><span id="radius-val">5</span> km</span>
+    <button class="btn-secondary" style="width:auto;padding:.4rem .9rem;font-size:.8rem;" onclick="showScreen('screen-landing')" data-i18n="logout">Logout</button>
+  </div>
+  <div id="map-container"></div>
+  <div class="section-title" data-i18n="nearby">Nearby users</div>
+  <div class="user-list" id="user-list"></div>
+</div>
+
+<!-- CHAT -->
+<div class="screen" id="screen-chat">
+  <div class="chat-header">
+    <button class="back-btn" onclick="showScreen('screen-map')">←</button>
+    <div class="chat-peer-info">
+      <div class="chat-peer-name" id="chat-peer-name">—</div>
+      <div class="chat-peer-status" id="chat-peer-status">Online</div>
+    </div>
+    <span class="lang-indicator" id="chat-lang-indicator">EN</span>
+    <div class="connected-badge">
+      <div class="pulse"></div>
+      <span data-i18n="connected">Connected</span>
+    </div>
+  </div>
+  <div class="messages" id="messages"></div>
+  <div class="typing-indicator" id="typing">
+    <span id="typing-name">User</span>
+    <div class="typing-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div class="translating-bar" id="translating-bar">
+    <span class="spin">⟳</span> <span data-i18n="translating">Translating...</span>
+  </div>
+  <div class="chat-input-area">
+    <div class="color-row">
+      <span class="color-label" data-i18n="yourColor">Your color:</span>
+      <div class="color-swatch selected" style="background:#00e5a0" onclick="setColor('#00e5a0',this)"></div>
+      <div class="color-swatch" style="background:#60aaff" onclick="setColor('#60aaff',this)"></div>
+      <div class="color-swatch" style="background:#ff7eb3" onclick="setColor('#ff7eb3',this)"></div>
+      <div class="color-swatch" style="background:#ffd460" onclick="setColor('#ffd460',this)"></div>
+      <div class="color-swatch" style="background:#c084fc" onclick="setColor('#c084fc',this)"></div>
+      <div class="color-swatch" style="background:#f87171" onclick="setColor('#f87171',this)"></div>
+    </div>
+    <div class="input-row">
+      <label class="file-btn" title="Attach file (max 4MB)">
+        📎<input type="file" id="file-input" style="display:none" onchange="handleFile(this)" accept="*/*">
+      </label>
+      <textarea class="chat-textarea" id="chat-input" placeholder="Type a message..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"
+        oninput="autoResize(this)"></textarea>
+      <button class="send-btn" onclick="sendMsg()" data-i18n="send">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="screen" id="screen-admin">
+  <div class="admin-header">
+    <div class="admin-title">⚙ Admin Panel</div>
+    <button class="btn-secondary" style="width:auto;padding:.4rem .9rem;font-size:.8rem" onclick="showScreen('screen-map')">← Back</button>
+  </div>
+
+  <!-- Notifications Config -->
+  <div class="admin-section">
+    <h3>🔔 Notification Settings</h3>
+
+    <div class="admin-row">
+      <label class="admin-label">Alert Email (for new chat connections)</label>
+      <input class="admin-input" type="email" id="adm-alert-email" placeholder="primelines72@gmail.com" value="primelines72@gmail.com">
+      <div class="admin-hint">Email sent via EmailJS when a real user connects to a virtual user.<br>
+        Setup: Register at <a href="https://emailjs.com" target="_blank">emailjs.com</a> → get Service ID, Template ID, Public Key below.</div>
+    </div>
+
+    <div class="admin-row">
+      <label class="admin-label">EmailJS Service ID</label>
+      <input class="admin-input" type="text" id="adm-emailjs-service" placeholder="service_kfe11di" value="service_kfe11di">
+    </div>
+    <div class="admin-row">
+      <label class="admin-label">EmailJS Template ID</label>
+      <input class="admin-input" type="text" id="adm-emailjs-template" placeholder="template_r8xbsmn" value="template_r8xbsmn">
+      <div class="admin-hint">Template variables available: <code>{{user_name}}</code>, <code>{{user_age}}</code>, <code>{{user_gender}}</code>, <code>{{bot_name}}</code>, <code>{{timestamp}}</code></div>
+    </div>
+    <div class="admin-row">
+      <label class="admin-label">EmailJS Public Key</label>
+      <input class="admin-input" type="text" id="adm-emailjs-pubkey" placeholder="6QdeERow3Pu9fem6t" value="6QdeERow3Pu9fem6t">
+    </div>
+
+    <hr style="border-color:var(--border);margin:.75rem 0">
+
+    <div class="admin-row">
+      <label class="admin-label">WhatsApp Phone Number (with country code, no + or spaces)</label>
+      <input class="admin-input" type="text" id="adm-wa-phone" placeholder="+916661122" value="+972549932931">
+    </div>
+    <div class="admin-row">
+      <label class="admin-label">CallMeBot API Key</label>
+      <input class="admin-input" type="text" id="adm-callmebot-key" placeholder="xxxxxxx">
+      <div class="admin-hint">
+        To get your free CallMeBot API key:<br>
+        1. Add <strong>+34 644 61 72 87</strong> to your WhatsApp contacts<br>
+        2. Send the message: <strong>I allow callmebot to send me messages</strong><br>
+        3. You'll receive your API key via WhatsApp
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+      <button class="btn-primary" style="width:auto;padding:.5rem 1rem;margin-top:0" onclick="saveNotifSettings()">💾 Save Settings</button>
+      <button class="btn-secondary" style="width:auto;padding:.5rem 1rem;margin-top:0" onclick="testNotifications()">🧪 Test Notifications</button>
+    </div>
+  </div>
+
+  <!-- Claude / Translation Config -->
+  <div class="admin-section">
+    <h3>🌐 Translation Settings</h3>
+    <div class="admin-row">
+      <label class="admin-label">Claude API Key (for translation)</label>
+      <input class="admin-input" type="password" id="adm-claude-key" placeholder="sk-ant-...">
+      <div class="admin-hint">Used for real-time message translation. Falls back to LibreTranslate if unavailable.</div>
+    </div>
+    <div class="admin-row" style="display:flex;align-items:center;gap:.75rem">
+      <label class="admin-label" style="margin:0">Translation enabled</label>
+      <input type="checkbox" id="adm-translation-on" checked style="accent-color:var(--accent);width:16px;height:16px">
+    </div>
+    <button class="btn-primary" style="width:auto;padding:.5rem 1rem;margin-top:.5rem" onclick="saveTranslationSettings()">💾 Save</button>
+  </div>
+
+  <!-- Live Sessions -->
+  <div class="admin-section">
+    <h3>💬 Live Sessions <span id="sessions-count" style="color:var(--muted);font-weight:400">(0 active)</span></h3>
+    <div id="live-sessions-list">
+      <div class="no-sessions">No active sessions</div>
+    </div>
+    <button class="btn-secondary" style="width:auto;padding:.4rem .9rem;font-size:.8rem;margin-top:.5rem" onclick="refreshSessions()">↻ Refresh</button>
+  </div>
+
+  <!-- Alert Filter -->
+  <div class="admin-section">
+    <h3>Alert Filter</h3>
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>Age from</label>
+        <select id="adm-age-from">
+          <option value="">Any</option>
+          <option>20</option><option>25</option><option>30</option><option>35</option>
+          <option>40</option><option>45</option><option>50</option><option>55</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Age to</label>
+        <select id="adm-age-to">
+          <option value="">Any</option>
+          <option>25</option><option>30</option><option>35</option><option>40</option>
+          <option>45</option><option>50</option><option>55</option><option>65</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Gender</label>
+        <select id="adm-gender">
+          <option value="">Any</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <button class="btn-primary" style="width:auto;padding:.5rem 1rem;margin-top:0" onclick="saveAdminFilter()">Save Filter</button>
+    </div>
+  </div>
+
+  <!-- Background -->
+  <div class="admin-section">
+    <h3>Background Image</h3>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+      <input type="text" id="adm-bg-url" placeholder="Image URL..." style="flex:1;min-width:200px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:.5rem .75rem;border-radius:8px;font-family:inherit;outline:none">
+      <button class="btn-primary" style="width:auto;padding:.5rem 1rem;margin-top:0" onclick="applyBg()">Apply</button>
+      <button class="btn-secondary" style="width:auto;padding:.5rem 1rem;margin-top:0" onclick="clearBg()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="admin-section">
+    <h3>Connection Log</h3>
+    <div class="filter-row" style="margin-bottom:.75rem">
+      <div class="filter-group">
+        <label>Date filter</label>
+        <input type="date" id="adm-log-date" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:.4rem .6rem;border-radius:8px;font-family:inherit;outline:none">
+      </div>
+      <button class="btn-primary" style="width:auto;padding:.45rem .9rem;margin-top:0;font-size:.85rem" onclick="filterLog()">Filter</button>
+      <button class="btn-secondary" style="width:auto;padding:.45rem .9rem;margin-top:0;font-size:.85rem" onclick="renderLog()">Show All</button>
+    </div>
+    <div id="adm-log" style="max-height:250px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// TRANSLATIONS (UI strings)
+// =============================================
+const LANGS = {
+  en: { tagline:"Connect with people near you — instantly.", username:"Username", ageRange:"Age Range", gender:"Gender", male:"Male", female:"Female", other:"Other", enterBtn:"Enter & Find People", orGuest:"— or continue as guest —", guestBtn:"Quick Guest Access", radius:"Radius:", logout:"Logout", nearby:"Nearby users", connected:"Connected", yourColor:"Your color:", send:"Send", translating:"Translating..." },
+  he: { tagline:"התחבר עם אנשים קרובים אליך — מיידית.", username:"שם משתמש", ageRange:"טווח גיל", gender:"מגדר", male:"זכר", female:"נקבה", other:"אחר", enterBtn:"כניסה & חיפוש אנשים", orGuest:"— או כניסה כאורח —", guestBtn:"גישה מהירה כאורח", radius:"רדיוס:", logout:"התנתק", nearby:"משתמשים קרובים", connected:"מחובר", yourColor:"הצבע שלך:", send:"שלח", translating:"מתרגם..." },
+  ar: { tagline:"تواصل مع الناس القريبين منك — فوراً.", username:"اسم المستخدم", ageRange:"الفئة العمرية", gender:"الجنس", male:"ذكر", female:"أنثى", other:"آخر", enterBtn:"دخول والبحث", orGuest:"— أو الدخول كضيف —", guestBtn:"وصول سريع كضيف", radius:"النطاق:", logout:"خروج", nearby:"المستخدمون القريبون", connected:"متصل", yourColor:"لونك:", send:"إرسال", translating:"جارٍ الترجمة..." },
+  fr: { tagline:"Connectez-vous avec des personnes proches.", username:"Nom d'utilisateur", ageRange:"Tranche d'âge", gender:"Genre", male:"Homme", female:"Femme", other:"Autre", enterBtn:"Entrer & Trouver", orGuest:"— ou continuer en invité —", guestBtn:"Accès rapide invité", radius:"Rayon:", logout:"Déconnexion", nearby:"Utilisateurs proches", connected:"Connecté", yourColor:"Votre couleur:", send:"Envoyer", translating:"Traduction..." },
+  de: { tagline:"Verbinde dich mit Menschen in deiner Nähe.", username:"Benutzername", ageRange:"Altersgruppe", gender:"Geschlecht", male:"Männlich", female:"Weiblich", other:"Andere", enterBtn:"Eintreten & Suchen", orGuest:"— oder als Gast —", guestBtn:"Schnellzugang Gast", radius:"Radius:", logout:"Abmelden", nearby:"Benutzer in der Nähe", connected:"Verbunden", yourColor:"Ihre Farbe:", send:"Senden", translating:"Übersetze..." },
+  es: { tagline:"Conéctate con personas cercanas a ti.", username:"Nombre de usuario", ageRange:"Rango de edad", gender:"Género", male:"Masculino", female:"Femenino", other:"Otro", enterBtn:"Entrar & Buscar", orGuest:"— o continuar como invitado —", guestBtn:"Acceso rápido invitado", radius:"Radio:", logout:"Cerrar sesión", nearby:"Usuarios cercanos", connected:"Conectado", yourColor:"Tu color:", send:"Enviar", translating:"Traduciendo..." },
+  ru: { tagline:"Связывайтесь с людьми рядом с вами.", username:"Имя пользователя", ageRange:"Возрастной диапазон", gender:"Пол", male:"Мужской", female:"Женский", other:"Другой", enterBtn:"Войти и Найти", orGuest:"— или как гость —", guestBtn:"Быстрый доступ гостя", radius:"Радиус:", logout:"Выйти", nearby:"Пользователи рядом", connected:"Подключено", yourColor:"Ваш цвет:", send:"Отправить", translating:"Перевод..." },
+  zh: { tagline:"即时与附近的人联系。", username:"用户名", ageRange:"年龄范围", gender:"性别", male:"男", female:"女", other:"其他", enterBtn:"进入并搜索", orGuest:"— 或作为访客 —", guestBtn:"快速访客访问", radius:"半径:", logout:"退出", nearby:"附近用户", connected:"已连接", yourColor:"您的颜色:", send:"发送", translating:"翻译中..." },
+  pt: { tagline:"Conecte-se com pessoas próximas a você.", username:"Nome de usuário", ageRange:"Faixa etária", gender:"Gênero", male:"Masculino", female:"Feminino", other:"Outro", enterBtn:"Entrar & Encontrar", orGuest:"— ou continuar como convidado —", guestBtn:"Acesso rápido de convidado", radius:"Raio:", logout:"Sair", nearby:"Usuários próximos", connected:"Conectado", yourColor:"Sua cor:", send:"Enviar", translating:"Traduzindo..." },
+  it: { tagline:"Connettiti con persone vicino a te.", username:"Nome utente", ageRange:"Fascia d'età", gender:"Genere", male:"Maschio", female:"Femmina", other:"Altro", enterBtn:"Entra & Trova", orGuest:"— o continua come ospite —", guestBtn:"Accesso rapido ospite", radius:"Raggio:", logout:"Esci", nearby:"Utenti vicini", connected:"Connesso", yourColor:"Il tuo colore:", send:"Invia", translating:"Traduzione..." }
+};
+
+// Language codes for translation API
+const LANG_NAMES = { en:'English', he:'Hebrew', ar:'Arabic', fr:'French', de:'German', es:'Spanish', ru:'Russian', zh:'Chinese', pt:'Portuguese', it:'Italian' };
+
+let curLang = 'en';
+function setLang(l) {
+  curLang = l;
+  const T = LANGS[l] || LANGS.en;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if(T[k]) el.textContent = T[k];
+  });
+  document.querySelectorAll('[data-i18n-val]').forEach(el => {
+    const k = el.getAttribute('data-i18n-val');
+    if(T[k]) el.textContent = T[k];
+  });
+  document.documentElement.dir = (l==='he'||l==='ar') ? 'rtl' : 'ltr';
+  document.getElementById('chat-lang-indicator').textContent = l.toUpperCase();
+  localStorage.setItem('mcLang', l);
+}
+
+// =============================================
+// TRANSLATION ENGINE
+// =============================================
+const translationCache = {}; // key: "text|targetLang" => translated
+
+async function translateText(text, targetLang) {
+  if(!text || !text.trim()) return text;
+  if(targetLang === 'en' && /^[a-zA-Z0-9\s\W]+$/.test(text)) return text; // looks like English already
+
+  const cacheKey = text + '|' + targetLang;
+  if(translationCache[cacheKey]) return translationCache[cacheKey];
+
+  const claudeKey = getAdminSetting('claudeKey');
+  const translationOn = getAdminSetting('translationOn') !== 'false';
+  if(!translationOn) return text;
+
+  // Try Claude first
+  if(claudeKey) {
+    try {
+      const result = await translateWithClaude(text, targetLang, claudeKey);
+      if(result) {
+        translationCache[cacheKey] = result;
+        return result;
+      }
+    } catch(e) {
+      console.warn('Claude translation failed, trying LibreTranslate:', e);
+    }
+  }
+
+  // Fallback: LibreTranslate
+  try {
+    const result = await translateWithLibre(text, targetLang);
+    if(result) {
+      translationCache[cacheKey] = result;
+      return result;
+    }
+  } catch(e) {
+    console.warn('LibreTranslate failed:', e);
+  }
+
+  return text; // return original if all fails
+}
+
+async function translateWithClaude(text, targetLang, apiKey) {
+  const langName = LANG_NAMES[targetLang] || targetLang;
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Translate the following text to ${langName}. Reply with ONLY the translated text, no explanations, no quotes:\n\n${text}`
+      }]
+    })
+  });
+  if(!resp.ok) throw new Error('Claude API error: ' + resp.status);
+  const data = await resp.json();
+  return data?.content?.[0]?.text?.trim() || null;
+}
+
+async function translateWithLibre(text, targetLang) {
+  // Map our lang codes to LibreTranslate codes
+  const libreMap = { en:'en', he:'he', ar:'ar', fr:'fr', de:'de', es:'es', ru:'ru', zh:'zh', pt:'pt', it:'it' };
+  const target = libreMap[targetLang] || 'en';
+
+  const resp = await fetch('https://libretranslate.com/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: text, source: 'auto', target, format: 'text' })
+  });
+  if(!resp.ok) throw new Error('LibreTranslate error: ' + resp.status);
+  const data = await resp.json();
+  return data?.translatedText || null;
+}
+
+// =============================================
+// STATE
+// =============================================
+let myUser = null;
+
+// Firebase INIT (REPLACE CONFIG)
+const firebaseConfig = {
+  apiKey: "AIzaSyCSaJ8n6x9D80_6DUu3WO5jM0Fs1YwLHk8",
+  authDomain: "chatme-74.firebaseapp.com",
+  databaseURL: "https://chatme-74-default-rtdb.firebaseio.com/",
+  projectId: "chatme-74",
+  storageBucket: "chatme-74.firebasestorage.app",
+  messagingSenderId: "293942157318",
+  appId: "1:293942157318:web:44fea6e983919c7b046387"
+ 
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let realUsers = [];
+
+// listen to online users
+db.ref('onlineUsers').on('value', snapshot => {
+  const data = snapshot.val() || {};
+  realUsers = Object.values(data);
+});
+
+let selectedGender = '';
+let myColor = '#00e5a0';
+let chatPeer = null;
+let botTypingTimer = null;
+let mapInstance = null;
+let myMarker = null;
+let userMarkers = [];
+let myCoords = null;
+let searchRadius = 5;
+let connectionLog = JSON.parse(localStorage.getItem('mcLog')||'[]');
+let adminFilter = JSON.parse(localStorage.getItem('mcAdminFilter')||'{"ageFrom":"","ageTo":"","gender":""}');
+let customBg = localStorage.getItem('mcBg')||'';
+
+// Live sessions store: { sessionId: { user, peer, messages:[], adminOverride:false } }
+let liveSessions = JSON.parse(localStorage.getItem('mcSessions')||'{}');
+let currentSessionId = null;
+
+const BOT_NAMES_M = ['Alex_M','Daniel_K','Roi_B','Nir_A','Tal_S','Ben_H','Guy_P','Tom_L','Omer_G','Yoav_C'];
+const BOT_NAMES_F = ['Maya_R','Noa_C','Shira_T','Liora_B','Dana_H','Gal_K','Yael_S','Moran_D','Keren_P','Liat_A'];
+const AGE_RANGES = ['20-25','25-30','30-35','35-40','40-45','45-50','50-55','55-60','60-65'];
+
+const BOT_RESPONSES = [
+  ["Hey! How are you doing today?","Nice to chat with you!","What brings you to MeetChat?"],
+  ["I'm doing well, thanks for asking!","Just exploring this platform. You?","It's a great day to connect!"],
+  ["That's interesting! Tell me more.","Oh I see, sounds fun.","Yeah I totally get that."],
+  ["Haha that's funny!","Really? That's cool.","Wow, didn't expect that!"],
+  ["How long have you been using this app?","Do you live around here?","What do you like to do on weekends?"],
+  ["Same here actually!","Interesting perspective.","Makes sense to me."],
+  ["Sorry I have to go soon...","It was really nice talking to you!","I need to get back to something, sorry!"],
+  ["Take care! 👋","Bye for now!","Nice meeting you, ciao!"]
+];
+let botMsgIdx = 0;
+let botConvTurn = 0;
+let hesitationTimer = null;
+
+// =============================================
+// ADMIN SETTINGS HELPERS
+// =============================================
+function getAdminSetting(key) {
+  const s = JSON.parse(localStorage.getItem('mcAdminNotif')||'{}');
+  return s[key] || '';
+}
+function saveAdminSettings(obj) {
+  const s = JSON.parse(localStorage.getItem('mcAdminNotif')||'{}');
+  Object.assign(s, obj);
+  localStorage.setItem('mcAdminNotif', JSON.stringify(s));
+}
+
+function saveNotifSettings() {
+  saveAdminSettings({
+    alertEmail: document.getElementById('adm-alert-email').value.trim(),
+    emailjsService: document.getElementById('adm-emailjs-service').value.trim(),
+    emailjsTemplate: document.getElementById('adm-emailjs-template').value.trim(),
+    emailjsPubkey: document.getElementById('adm-emailjs-pubkey').value.trim(),
+    waPhone: document.getElementById('adm-wa-phone').value.trim(),
+    callmebotKey: document.getElementById('adm-callmebot-key').value.trim()
+  });
+  showToast('✅ Notification settings saved');
+}
+
+function saveTranslationSettings() {
+  const key = document.getElementById('adm-claude-key').value.trim();
+  const on = document.getElementById('adm-translation-on').checked;
+  saveAdminSettings({ claudeKey: key, translationOn: on ? 'true' : 'false' });
+  showToast('✅ Translation settings saved');
+}
+
+function loadAdminSettingsToUI() {
+  const s = JSON.parse(localStorage.getItem('mcAdminNotif')||'{}');
+  if(s.alertEmail) document.getElementById('adm-alert-email').value = s.alertEmail;
+  if(s.emailjsService) document.getElementById('adm-emailjs-service').value = s.emailjsService;
+  if(s.emailjsTemplate) document.getElementById('adm-emailjs-template').value = s.emailjsTemplate;
+  if(s.emailjsPubkey) document.getElementById('adm-emailjs-pubkey').value = s.emailjsPubkey;
+  if(s.waPhone) document.getElementById('adm-wa-phone').value = s.waPhone;
+  if(s.callmebotKey) document.getElementById('adm-callmebot-key').value = s.callmebotKey;
+  if(s.claudeKey) document.getElementById('adm-claude-key').value = s.claudeKey;
+  if(s.translationOn === 'false') document.getElementById('adm-translation-on').checked = false;
+}
+
+async function testNotifications() {
+  showToast('🧪 Sending test notifications...');
+  await sendEmailAlert({ name:'TestUser', age:'25-30', gender:'male' }, 'TestBot');
+  await sendWhatsAppAlert({ name:'TestUser', age:'25-30', gender:'male' }, 'TestBot');
+}
+
+// =============================================
+// EMAIL ALERT (EmailJS)
+// =============================================
+async function sendEmailAlert(user, botName) {
+  const service = getAdminSetting('emailjsService');
+  const template = getAdminSetting('emailjsTemplate');
+  const pubkey = getAdminSetting('emailjsPubkey');
+  const email = getAdminSetting('alertEmail') || 'doronefe@gmail.com';
+
+  if(!service || !template || !pubkey) {
+    console.warn('EmailJS not configured, skipping email alert');
+    return;
+  }
+
+  try {
+    emailjs.init(pubkey);
+    await emailjs.send(service, template, {
+      to_email: email,
+      user_name: user.name,
+      user_age: user.age,
+      user_gender: user.gender,
+      bot_name: botName,
+      timestamp: new Date().toLocaleString()
+    });
+    console.log('Email alert sent to', email);
+  } catch(e) {
+    console.error('EmailJS error:', e);
+  }
+}
+
+// =============================================
+// WHATSAPP ALERT (CallMeBot)
+// =============================================
+async function sendWhatsAppAlert(user, botName) {
+  const phone = getAdminSetting('waPhone');
+  const apiKey = getAdminSetting('callmebotKey');
+
+  if(!phone || !apiKey) {
+    console.warn('CallMeBot not configured, skipping WhatsApp alert');
+    return;
+  }
+
+  const sessionLink = `${window.location.href}`;
+  const msg = `🔔 MeetChat Alert!\nUser: ${user.name} (${user.age}, ${user.gender})\nConnected to virtual user: ${botName}\nTime: ${new Date().toLocaleTimeString()}\n\nTo take over the chat, reply via the admin panel.`;
+
+  const encoded = encodeURIComponent(msg);
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encoded}&apikey=${apiKey}`;
+
+  try {
+    // Use no-cors fetch to avoid CORS issues with CallMeBot
+    await fetch(url, { method: 'GET', mode: 'no-cors' });
+    console.log('WhatsApp alert sent to', phone);
+  } catch(e) {
+    console.warn('CallMeBot fetch error (may still have sent):', e);
+  }
+}
+
+// Build a wa.me reply link for admin takeover
+function buildWAReplyLink(user, botName, sessionId) {
+  const phone = getAdminSetting('waPhone');
+  if(!phone) return null;
+  const text = encodeURIComponent(`[ADMIN REPLY to ${user.name}/${botName}] `);
+  return `https://wa.me/${phone}?text=${text}`;
+}
+
+// =============================================
+// LIVE SESSIONS
+// =============================================
+function createSession(user, peer) {
+  const id = 'sess_' + Date.now();
+  liveSessions[id] = {
+    id,
+    user: { name: user.name, age: user.age, gender: user.gender },
+    peer: { name: peer.name },
+    messages: [],
+    started: new Date().toISOString(),
+    adminOverride: false
+  };
+  saveSessions();
+  return id;
+}
+
+function addMsgToSession(sessionId, sender, text, side) {
+  if(!liveSessions[sessionId]) return;
+  liveSessions[sessionId].messages.push({
+    sender, text, side,
+    time: new Date().toLocaleTimeString().slice(0,5)
+  });
+  // Keep last 50 messages per session
+  if(liveSessions[sessionId].messages.length > 50) {
+    liveSessions[sessionId].messages = liveSessions[sessionId].messages.slice(-50);
+  }
+  saveSessions();
+}
+
+function saveSessions() {
+  // Only save last 20 sessions
+  const keys = Object.keys(liveSessions).slice(-20);
+  const trimmed = {};
+  keys.forEach(k => trimmed[k] = liveSessions[k]);
+  localStorage.setItem('mcSessions', JSON.stringify(trimmed));
+}
+
+function refreshSessions() {
+  liveSessions = JSON.parse(localStorage.getItem('mcSessions')||'{}');
+  renderSessions();
+}
+
+function renderSessions() {
+  const list = document.getElementById('live-sessions-list');
+  const keys = Object.keys(liveSessions);
+  document.getElementById('sessions-count').textContent = `(${keys.length} stored)`;
+
+  if(!keys.length) {
+    list.innerHTML = '<div class="no-sessions">No sessions stored</div>';
+    return;
+  }
+
+  list.innerHTML = keys.reverse().map(id => {
+    const s = liveSessions[id];
+    const msgs = s.messages.slice(-5).map(m => `
+      <div class="session-msg">
+        <span class="s-sender">${escapeHtml(m.sender)}:</span>
+        <span class="s-text">${escapeHtml(m.text)}</span>
+      </div>`).join('');
+
+    const waLink = buildWAReplyLink(s.user, s.peer, id);
+    const waBtn = waLink ? `<a href="${waLink}" target="_blank" class="whatsapp-link">💬 Reply via WhatsApp</a>` : '';
+
+    return `
+      <div class="session-item">
+        <div class="session-header">
+          <span class="session-name">👤 ${escapeHtml(s.user.name)}</span>
+          <span class="session-meta">↔ ${escapeHtml(s.peer.name)} · ${s.started.slice(11,16)}</span>
+        </div>
+        <div class="session-msgs">${msgs || '<div style="color:var(--muted);font-size:.75rem">No messages yet</div>'}</div>
+        <div class="session-input-row">
+          <textarea class="session-textarea" id="admin-reply-${id}" placeholder="Type as ${escapeHtml(s.peer.name)}..." rows="1"></textarea>
+          <button class="session-send-btn" onclick="adminSendReply('${id}')">Send as Bot</button>
+        </div>
+        ${waBtn}
+      </div>`;
+  }).join('');
+}
+
+function adminSendReply(sessionId) {
+  const textarea = document.getElementById('admin-reply-' + sessionId);
+  if(!textarea) return;
+  const text = textarea.value.trim();
+  if(!text) return;
+
+  const s = liveSessions[sessionId];
+  if(!s) { showToast('Session not found'); return; }
+
+  // If this is the current active chat session, inject the message live
+  if(currentSessionId === sessionId) {
+    // Clear bot timers and inject admin message
+    clearTimeout(botTypingTimer);
+    clearTimeout(hesitationTimer);
+    showTyping(false);
+    appendMsg(s.peer.name, text, 'theirs', null, false);
+    addMsgToSession(sessionId, s.peer.name, text, 'theirs');
+  } else {
+    // Store for when they return
+    addMsgToSession(sessionId, '[ADMIN as ' + s.peer.name + ']', text, 'theirs');
+    showToast('Reply stored — will appear when user returns to this chat');
+  }
+
+  textarea.value = '';
+  liveSessions[sessionId].adminOverride = true;
+  saveSessions();
+  renderSessions();
+  showToast(`✅ Sent as ${s.peer.name}`);
+}
+
+// =============================================
+// SCREENS
+// =============================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id === 'screen-map') { setTimeout(initMap, 100); renderUserList(); }
+  if(id === 'screen-admin') { renderLog(); loadAdminSettingsToUI(); renderSessions(); }
+}
+
+// =============================================
+// AUTH
+// =============================================
+function setGender(g, el) {
+  selectedGender = g;
+  document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function login() {
+  const name = document.getElementById('inp-username').value.trim().replace(/[^a-zA-Z0-9]/g,'');
+  const age = document.getElementById('inp-age').value;
+  if(!name) { showToast('Please enter a username'); return; }
+  if(!age) { showToast('Please select an age range'); return; }
+  if(!selectedGender) { showToast('Please select a gender'); return; }
+  if(name.toLowerCase() === 'meetadmin40') { enterAdmin(); return; }
+  doLogin(name, age, selectedGender);
+}
+
+function guestLogin() {
+  const name = 'Guest_'+Math.floor(Math.random()*9000+1000);
+  const ages = AGE_RANGES;
+  const age = ages[Math.floor(Math.random()*ages.length)];
+  const genders = ['male','female','other'];
+  const gender = genders[Math.floor(Math.random()*genders.length)];
+  doLogin(name, age, gender);
+}
+
+function doLogin(name, age, gender) {
+  getLocation().then(coords => {
+    myCoords = coords;
+    myUser = { name, age, gender, coords, online: true };
+
+// register in firebase
+const userRef = db.ref('onlineUsers/' + name);
+userRef.set({ name, age, gender, online: true });
+userRef.onDisconnect().remove();
+
+    document.getElementById('topbar-username').textContent = name;
+    logConnection(name, age, gender, coords);
+    applyStoredBg();
+    showScreen('screen-map');
+  });
+}
+
+function enterAdmin() {
+  myUser = { name:'MEETADMIN40', admin: true };
+  applyStoredBg();
+  showScreen('screen-admin');
+}
+
+function getLocation() {
+  return new Promise(resolve => {
+    if(navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(getDefaultCoords())
+      );
+    } else { resolve(getDefaultCoords()); }
+  });
+}
+function getDefaultCoords() {
+  return { lat: 32.0853 + (Math.random()-.5)*.05, lng: 34.7818 + (Math.random()-.5)*.05 };
+}
+
+// =============================================
+// MAP
+// =============================================
+function initMap() {
+  if(mapInstance) { mapInstance.remove(); mapInstance = null; }
+  const container = document.getElementById('map-container');
+  mapInstance = L.map(container, { zoomControl: true, attributionControl: false }).setView(
+    myCoords ? [myCoords.lat, myCoords.lng] : [32.0853, 34.7818], 12
+  );
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(mapInstance);
+  if(myCoords) {
+    const myIcon = L.divIcon({ className:'', html:'<div style="width:14px;height:14px;border-radius:50%;background:#00e5a0;border:2px solid white;box-shadow:0 0 6px #00e5a0"></div>', iconAnchor:[7,7] });
+    myMarker = L.marker([myCoords.lat, myCoords.lng], { icon: myIcon }).addTo(mapInstance);
+    myMarker.bindPopup('<b>' + myUser.name + '</b><br>You');
+    drawRadiusCircle();
+  }
+  plotVirtualUsers();
+}
+
+let radiusCircle = null;
+function drawRadiusCircle() {
+  if(!mapInstance || !myCoords) return;
+  if(radiusCircle) radiusCircle.remove();
+  radiusCircle = L.circle([myCoords.lat, myCoords.lng], {
+    radius: searchRadius * 1000,
+    color: '#00e5a0', fillColor: '#00e5a0', fillOpacity: 0.05, weight: 1.5, dashArray: '4,4'
+  }).addTo(mapInstance);
+  mapInstance.fitBounds(radiusCircle.getBounds(), { padding:[20,20] });
+}
+
+function updateRadius(val) {
+  searchRadius = parseInt(val);
+  document.getElementById('radius-val').textContent = val;
+  drawRadiusCircle();
+  plotVirtualUsers();
+  renderUserList();
+}
+
+let virtualUsers = [];
+function plotVirtualUsers() {
+  if(!mapInstance) return;
+  userMarkers.forEach(m => m.remove());
+  userMarkers = [];
+  virtualUsers = generateVirtualUsers();
+  virtualUsers.forEach(u => {
+    const color = u.online ? '#4ade80' : '#f87171';
+    const icon = L.divIcon({ className:'', html:`<div style="width:10px;height:10px;border-radius:50%;background:${color};border:1.5px solid white;cursor:pointer"></div>`, iconAnchor:[5,5] });
+    const m = L.marker([u.coords.lat, u.coords.lng], { icon }).addTo(mapInstance);
+    m.bindPopup(`<b>${u.name}</b><br>${u.age} · ${u.gender}<br>${u.online?'Online':'Offline'}`);
+    m.on('click', () => openChat(u));
+    userMarkers.push(m);
+  });
+}
+
+function generateVirtualUsers() {
+  const hasOtherRealUser = realUsers.some(u => u.name !== myUser.name && u.online);
+const n = hasOtherRealUser ? Math.floor(Math.random() * 3) : Math.floor(Math.random() * 36);
+  const users = [];
+  for(let i=0;i<n;i++) {
+    const gend = Math.random() < .5 ? 'male' : 'female';
+    const names = gend === 'male' ? BOT_NAMES_M : BOT_NAMES_F;
+    const name = names[Math.floor(Math.random()*names.length)] + '_' + Math.floor(Math.random()*99);
+    const age = AGE_RANGES[Math.floor(Math.random()*AGE_RANGES.length)];
+    const online = Math.random() > .35;
+    const angleDeg = Math.random()*360;
+    const distKm = Math.random() * searchRadius;
+    const lat = (myCoords?.lat||32.0853) + (distKm/111)*Math.cos(angleDeg*Math.PI/180);
+    const lng = (myCoords?.lng||34.7818) + (distKm/111)*Math.sin(angleDeg*Math.PI/180);
+    const dist = (distKm).toFixed(1);
+    users.push({ name, age, gender: gend, online, virtual: true, coords:{lat,lng}, dist });
+  }
+  return users.sort((a,b)=>parseFloat(a.dist)-parseFloat(b.dist));
+}
+
+// =============================================
+// USER LIST
+// =============================================
+function renderUserList() {
+  const list = document.getElementById('user-list');
+  list.innerHTML = '';
+  if(!virtualUsers.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--muted);padding:2rem;font-size:.85rem">No users in this area</div>';
+    return;
+  }
+  virtualUsers.forEach(u => {
+    const div = document.createElement('div');
+    div.className = 'user-item virtual';
+    const initials = u.name.substring(0,2).toUpperCase();
+    const gIcon = u.gender==='male' ? '♂' : u.gender==='female' ? '♀' : '⊘';
+    div.innerHTML = `
+      <div class="avatar ${u.online?'online':''}" style="color:${u.online?'#00e5a0':'#888'}">${initials}</div>
+      <div class="user-info">
+        <div class="user-name">${u.name}</div>
+        <div class="user-meta">${u.age} · ${gIcon} · ${u.dist} km away</div>
+      </div>
+      <div>
+        <div class="user-status ${u.online?'':'offline'}">${u.online?'Online':'Offline'}</div>
+      </div>`;
+    div.onclick = () => openChat(u);
+    list.appendChild(div);
+  });
+}
+
+// =============================================
+// CHAT + TRANSLATION
+// =============================================
+async function openChat(peer) {
+  chatPeer = peer;
+  botMsgIdx = 0;
+  botConvTurn = 0;
+  document.getElementById('chat-peer-name').textContent = peer.name;
+  document.getElementById('chat-peer-status').textContent = peer.online ? 'Online' : 'Offline';
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('chat-lang-indicator').textContent = curLang.toUpperCase();
+  clearTimeout(botTypingTimer);
+  clearTimeout(hesitationTimer);
+  showScreen('screen-chat');
+
+  if(peer.virtual) {
+    // Create session
+    currentSessionId = createSession(myUser, peer);
+
+    // Send notifications to admin
+    sendEmailAlert(myUser, peer.name);
+    sendWhatsAppAlert(myUser, peer.name);
+
+    // Bot first message
+    const delay = 2000 + Math.random()*3000;
+    showTyping(true);
+    botTypingTimer = setTimeout(async () => {
+      showTyping(false);
+      const greets = [
+        `Hey ${myUser?.name||'there'}! 😊`,
+        `Hi! Nice to meet you here.`,
+        `Hello! How's your day going?`,
+        `Hey, glad to connect! What's up?`
+      ];
+      const rawGreet = greets[Math.floor(Math.random()*greets.length)];
+      const translated = await maybeTranslate(rawGreet, 'theirs');
+      appendMsg(peer.name, translated.display, 'theirs', null, translated.wasTranslated, translated.original);
+      addMsgToSession(currentSessionId, peer.name, rawGreet, 'theirs');
+      botConvTurn = 1;
+    }, delay);
+  }
+}
+
+// maybeTranslate: translate incoming/outgoing text to user's language
+async function maybeTranslate(text, direction) {
+  const translationOn = getAdminSetting('translationOn') !== 'false';
+  if(!translationOn || curLang === 'en') {
+    return { display: text, original: text, wasTranslated: false };
+  }
+
+  showTranslatingBar(true);
+  try {
+    const translated = await translateText(text, curLang);
+    showTranslatingBar(false);
+    if(translated && translated !== text) {
+      return { display: translated, original: text, wasTranslated: true };
+    }
+  } catch(e) {
+    showTranslatingBar(false);
+  }
+  return { display: text, original: text, wasTranslated: false };
+}
+
+function showTranslatingBar(show) {
+  const bar = document.getElementById('translating-bar');
+  if(show) bar.classList.add('show');
+  else bar.classList.remove('show');
+}
+
+async function sendMsg() {
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  const name = myUser?.name || 'You';
+
+  // Show original message immediately (user's own language)
+  appendMsg(name, text, 'mine', myColor, false, null);
+  inp.value = '';
+  autoResize(inp);
+
+  if(currentSessionId) addMsgToSession(currentSessionId, name, text, 'mine');
+
+  if(chatPeer?.virtual) scheduleBotReply(text);
+}
+
+function scheduleBotReply(userText) {
+  clearTimeout(botTypingTimer);
+  clearTimeout(hesitationTimer);
+  botConvTurn++;
+
+  if(botConvTurn > 6 && userText.length < 15 && Math.random() > .5) {
+    const endings = [
+      "Sorry, I really have to go now, take care!",
+      "Oops, something came up — gotta run, bye!",
+      "It was lovely chatting! I need to sign off now.",
+    ];
+    const delay = 3000 + Math.random()*5000;
+    showTyping(true);
+    botTypingTimer = setTimeout(async () => {
+      showTyping(false);
+      const raw = endings[Math.floor(Math.random()*endings.length)];
+      const translated = await maybeTranslate(raw, 'theirs');
+      appendMsg(chatPeer.name, translated.display, 'theirs', null, translated.wasTranslated, translated.original);
+      if(currentSessionId) addMsgToSession(currentSessionId, chatPeer.name, raw, 'theirs');
+    }, delay);
+    return;
+  }
+
+  const delay = 5000 + Math.random()*70000;
+  showTyping(false);
+  hesitationTimer = setTimeout(() => showTyping(true), Math.min(delay - 2000, delay * .7));
+  botTypingTimer = setTimeout(async () => {
+    showTyping(false);
+    const pool = BOT_RESPONSES[Math.min(botMsgIdx, BOT_RESPONSES.length-1)];
+    const raw = pool[Math.floor(Math.random()*pool.length)];
+    const translated = await maybeTranslate(raw, 'theirs');
+    appendMsg(chatPeer.name, translated.display, 'theirs', null, translated.wasTranslated, translated.original);
+    if(currentSessionId) addMsgToSession(currentSessionId, chatPeer.name, raw, 'theirs');
+    botMsgIdx = Math.min(botMsgIdx+1, BOT_RESPONSES.length-1);
+  }, delay);
+}
+
+function appendMsg(sender, text, side, color, wasTranslated, originalText) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${side}`;
+  const now = new Date();
+  const time = now.toTimeString().slice(0,5);
+  const bubbleStyle = color ? `style="background:${color};color:${isDark(color)?'#fff':'#000'}"` : '';
+
+  let translationMeta = '';
+  if(wasTranslated && originalText) {
+    const msgId = 'orig_' + Date.now() + Math.random().toString(36).slice(2);
+    translationMeta = `
+      <div class="msg-translated">Translated · <button class="translate-toggle" onclick="toggleOriginal('${msgId}')">show original</button></div>
+      <div class="msg-original" id="${msgId}" style="display:none">${escapeHtml(originalText)}</div>`;
+  }
+
+  div.innerHTML = `
+    ${side==='theirs'?`<div class="msg-sender">${escapeHtml(sender)}</div>`:''}
+    <div class="msg-bubble" ${bubbleStyle}>${escapeHtml(text)}</div>
+    ${translationMeta}
+    <div class="msg-meta">${time}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function toggleOriginal(id) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  const btn = el.previousElementSibling?.querySelector('.translate-toggle');
+  if(el.style.display === 'none') {
+    el.style.display = 'block';
+    if(btn) btn.textContent = 'hide original';
+  } else {
+    el.style.display = 'none';
+    if(btn) btn.textContent = 'show original';
+  }
+}
+
+function appendFilMsg(sender, fileName, dataUrl, side) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${side}`;
+  const now = new Date();
+  const time = now.toTimeString().slice(0,5);
+  let countdown = 60;
+  const uid = 'ftimer_'+Date.now();
+  div.innerHTML = `
+    ${side==='theirs'?`<div class="msg-sender">${escapeHtml(sender)}</div>`:''}
+    <div class="msg-bubble" style="padding:0;background:transparent">
+      <div class="file-msg">
+        <div class="file-name">📎 ${escapeHtml(fileName)}</div>
+        <div class="file-timer" id="${uid}">Available for ${countdown}s</div>
+        ${dataUrl?`<div class="file-dl" onclick="dlFile('${uid}','${dataUrl}','${fileName}')">Download</div>`:''}
+      </div>
+    </div>
+    <div class="msg-meta">${time}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  if(dataUrl) {
+    const iv = setInterval(() => {
+      countdown--;
+      const el = document.getElementById(uid);
+      if(el) el.textContent = countdown > 0 ? `Available for ${countdown}s` : 'File expired';
+      if(countdown <= 0) { clearInterval(iv); const dl = el?.nextElementSibling; if(dl) dl.remove(); }
+    }, 1000);
+  }
+}
+
+function dlFile(timerId, dataUrl, name) {
+  const el = document.getElementById(timerId);
+  if(el && el.textContent.includes('expired')) { showToast('File has expired'); return; }
+  const a = document.createElement('a'); a.href = dataUrl; a.download = name; a.click();
+}
+
+function handleFile(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 4*1024*1024) { showToast('File too large (max 4 MB)'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    appendFilMsg(myUser?.name||'You', file.name, e.target.result, 'mine');
+    showToast('File sent — available 60 seconds');
+    if(chatPeer?.virtual) {
+      setTimeout(()=>appendMsg(chatPeer.name, 'Oh cool, let me check that!', 'theirs', null, false, null), 3000+Math.random()*5000);
+    }
+  };
+  reader.readAsDataURL(file);
+  input.value='';
+}
+
+function showTyping(show) {
+  const el = document.getElementById('typing');
+  el.style.display = show ? 'flex' : 'none';
+  if(show) document.getElementById('typing-name').textContent = chatPeer?.name||'User';
+  document.getElementById('messages').scrollTop = 999999;
+}
+
+function setColor(c, el) {
+  myColor = c;
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function isDark(hex) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return (r*299+g*587+b*114)/1000 < 128;
+}
+function escapeHtml(t) {
+  if(!t) return '';
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+
+// =============================================
+// LOG
+// =============================================
+function logConnection(name, age, gender, coords) {
+  const entry = { ts: new Date().toISOString(), name, age, gender, lat: coords?.lat?.toFixed(5)||'?', lng: coords?.lng?.toFixed(5)||'?' };
+  connectionLog.unshift(entry);
+  if(connectionLog.length > 500) connectionLog = connectionLog.slice(0,500);
+  localStorage.setItem('mcLog', JSON.stringify(connectionLog));
+}
+function renderLog(filterDate) {
+  const cont = document.getElementById('adm-log');
+  if(!cont) return;
+  let entries = connectionLog;
+  if(filterDate) entries = entries.filter(e => e.ts.startsWith(filterDate));
+  if(!entries.length) { cont.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:.5rem">No entries</div>'; return; }
+  cont.innerHTML = entries.map(e => `
+    <div class="log-item">
+      <span class="log-time">${e.ts.slice(0,16).replace('T',' ')}</span>
+      <span class="log-detail">${escapeHtml(e.name)} · ${e.age} · ${e.gender} · ${e.lat},${e.lng}</span>
+    </div>`).join('');
+}
+function filterLog() {
+  const d = document.getElementById('adm-log-date').value;
+  renderLog(d||null);
+}
+function saveAdminFilter() {
+  adminFilter = {
+    ageFrom: document.getElementById('adm-age-from').value,
+    ageTo: document.getElementById('adm-age-to').value,
+    gender: document.getElementById('adm-gender').value
+  };
+  localStorage.setItem('mcAdminFilter', JSON.stringify(adminFilter));
+  showToast('Filter saved');
+}
+
+// =============================================
+// BG
+// =============================================
+function applyBg() {
+  const url = document.getElementById('adm-bg-url').value.trim();
+  if(!url) return;
+  customBg = url;
+  localStorage.setItem('mcBg', url);
+  applyStoredBg();
+  showToast('Background applied');
+}
+function clearBg() {
+  customBg = '';
+  localStorage.removeItem('mcBg');
+  document.getElementById('bg-overlay').style.backgroundImage = '';
+  document.getElementById('bg-overlay').style.opacity = '0';
+  showToast('Background cleared');
+}
+function applyStoredBg() {
+  if(!customBg) return;
+  const el = document.getElementById('bg-overlay');
+  el.style.backgroundImage = `url('${customBg}')`;
+  el.style.opacity = '0.18';
+}
+
+// =============================================
+// TOAST
+// =============================================
+function showToast(msg, duration=2800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), duration);
+}
+
+// =============================================
+// INIT
+// =============================================
+applyStoredBg();
+// Restore saved language
+const savedLang = localStorage.getItem('mcLang');
+if(savedLang) {
+  document.getElementById('lang-select').value = savedLang;
+  setLang(savedLang);
+}
+</script>
+</body>
+</html>
